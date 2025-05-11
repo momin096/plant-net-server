@@ -48,9 +48,9 @@ const client = new MongoClient(uri, {
 })
 async function run() {
   try {
-
-    // COLLECTIONS 
+    // DB
     const db = client.db('PlantNet')
+    // COLLECTIONS 
     const usersCollection = db.collection('users');
     const plantsCollection = db.collection('plants');
     const ordersCollection = db.collection('orders');
@@ -73,6 +73,31 @@ async function run() {
         timestamp: Date.now()
       });
       res.send(result);
+    })
+
+    // manage user status and role 
+    app.patch('/users/:email', async (req, res) => {
+      const email = req.params.email
+      const query = { email }
+      const user = await usersCollection.findOne(query)
+      if (!user || user?.status === 'Requested') return res.status(400).send('You have already requested, Wait for some time')
+
+      const updateDoc = {
+        $set: {
+          status: 'Requested'
+        }
+      }
+      const result = await usersCollection.updateOne(query, updateDoc)
+      res.send(result)
+
+    })
+
+    // get user role 
+    app.get('/users/role/:email', async (req, res) => {
+      const email = req.params.email
+      const query = { email }
+      const result = await usersCollection.findOne(query)
+      res.send({ role: result?.role })
     })
 
 
