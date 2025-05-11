@@ -53,6 +53,7 @@ async function run() {
     const db = client.db('PlantNet')
     const usersCollection = db.collection('users');
     const plantsCollection = db.collection('plants');
+    const ordersCollection = db.collection('orders');
 
     // save or a user in db 
     app.post('/users/:email', async (req, res) => {
@@ -125,6 +126,68 @@ async function run() {
       const query = { _id: new ObjectId(id) }
       const result = await plantsCollection.findOne(query)
       res.send(result)
+    })
+
+
+    // order collection 
+    app.post('/orders', verifyToken, async (req, res) => {
+      const orderInfo = req.body;
+      const result = await ordersCollection.insertOne(orderInfo)
+      res.send(result)
+    })
+
+
+    // manage plant quantity 
+    app.patch('/plants/quantity/:id', async (req, res) => {
+      const id = req.params.id;
+      const { quantityToUpdate } = req.body;
+
+      const filter = { _id: new ObjectId(id) }
+
+      let updatedDoc = {
+        $inc: { quantity: -quantityToUpdate }
+      }
+      const result = await plantsCollection.updateOne(filter, updatedDoc)
+      res.send(result)
+    })
+
+    app.get('/customer-orders/:email', verifyToken, async (req, res) => {
+      const email = req.params.email
+      const query = { 'customer.email': email }
+      const result = await ordersCollection.aggregate([
+        {
+          $match: query, //Match specific customer data by email 
+        },
+        {
+          $addFields: {
+            plantId: { $toObjectId: '$plantId' } // Convert plantId string to ObjectId 
+          }
+        },
+        {
+          $lookup: {  // go to different collection and look for data
+            from: 'plants', // Collection name
+            localField: 'plantId', // local data that you want to match 
+            foreignField: '_id', // foreign field name of the same data
+            as: 'plants' // return the data as plant array (array naming)
+          }
+        },
+        {
+          $unwind: '$plants' // unwind lookup result, return without array
+        },
+        {
+          $addFields: { // add this field in order object 
+            name: '$plants.name', //
+            category: '$plants.category',
+            image: '$plants.imageUrl'
+          }
+        },
+        {
+          $project: {  // remove plants object property form order object 
+            plants: 0,
+          }
+        }
+      ]).toArray()
+      res.send(result);
     })
 
     // Send a ping to confirm a successful connection
