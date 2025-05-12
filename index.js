@@ -55,11 +55,33 @@ async function run() {
     const plantsCollection = db.collection('plants');
     const ordersCollection = db.collection('orders');
 
+
+    // verify ADMIN middleware 
+    const verifyAdmin = async (req, res, next) => {
+      const email = req?.user?.email;
+      const query = { email }
+      const user = await usersCollection.findOne(query)
+
+      if (!user || user?.role !== 'admin') return res.status(401).send({ message: 'UnAuthorize Access' })
+
+      next()
+    }
+    // verify Seller middleware 
+    const verifySeller = async (req, res, next) => {
+      const email = req?.user?.email;
+      const query = { email }
+      const user = await usersCollection.findOne(query)
+
+      if (!user || user?.role !== 'seller') return res.status(401).send({ message: 'UnAuthorize Access' })
+
+      next()
+    }
+
+
     // save or a user in db 
     app.post('/users/:email', async (req, res) => {
       const email = req.params.email;
       const user = req.body;
-
       // check if user exists in db 
       const query = { email };
       const isExist = await usersCollection.findOne(query)
@@ -76,7 +98,7 @@ async function run() {
     })
 
     // manage user status and role 
-    app.patch('/users/:email', async (req, res) => {
+    app.patch('/users/:email', verifyToken, verifyAdmin, async (req, res) => {
       const email = req.params.email
       const query = { email }
       const user = await usersCollection.findOne(query)
@@ -93,13 +115,26 @@ async function run() {
     })
 
     // get user role 
-    app.get('/users/role/:email', async (req, res) => {
+    app.get('/users/role/:email', verifyToken, async (req, res) => {
       const email = req.params.email
       const query = { email }
       const result = await usersCollection.findOne(query)
       res.send({ role: result?.role })
     })
 
+    // update a user role 
+    app.patch('/users/role/:email', verifyToken, verifyAdmin, async (req, res) => {
+      const email = req.params.email
+      const { role } = req.body
+      const filter = { email }
+      const updateDoc = {
+        $set: {
+          role, status: "Verified"
+        }
+      }
+      const result = await usersCollection.updateOne(filter, updateDoc)
+      res.send(result)
+    })
 
 
     // Generate jwt token
@@ -132,8 +167,17 @@ async function run() {
     })
 
 
+    // get all user data
+    app.get('/all-users/:email', verifyToken, verifyAdmin, async (req, res) => {
+      const email = req.params.email
+      const query = { email: { $ne: email } }
+      result = await usersCollection.find(query).toArray();
+      res.send(result)
+    })
+
+
     // add plant in db 
-    app.post('/plants', verifyToken, async (req, res) => {
+    app.post('/plants', verifyToken, verifySeller, async (req, res) => {
       const plant = req.body;
       const result = await plantsCollection.insertOne(plant);
       res.send(result)
@@ -223,7 +267,7 @@ async function run() {
 
 
     // cancel or delete and order 
-    app.delete('/orders/:id', async (req, res) => {
+    app.delete('/orders/:id', verifyToken, async (req, res) => {
       const id = req.params.id;
       const query = { _id: new ObjectId(id) }
 
