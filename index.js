@@ -183,6 +183,23 @@ async function run() {
       res.send(result)
     })
 
+    // seller My inventory get all plant posts
+    app.get('/plants/seller/', verifyToken, verifySeller, async (req, res) => {
+      const email = req?.user?.email
+      const query = { 'seller.email': email }
+      const result = await plantsCollection.find(query).toArray()
+      res.send(result)
+    })
+
+
+    // delete a plant from db by seller 
+    app.delete('/plants/:id', verifyToken, verifySeller, async (req, res) => {
+      const id = req.params.id
+      const query = { _id: new ObjectId(id) }
+      const result = await plantsCollection.deleteOne(query)
+      res.send(result)
+    })
+
     // get all plants
     app.get('/plants', async (req, res) => {
       const result = await plantsCollection.find().toArray();
